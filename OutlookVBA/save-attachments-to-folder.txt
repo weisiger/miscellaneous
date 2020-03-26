@@ -1,0 +1,194 @@
+Option Explicit
+Public Sub SaveAttachments()
+
+    Dim objOL As Outlook.Application
+    Dim objSelection As Outlook.Selection
+    Dim objOLItem As Object
+    Dim objMsg As Outlook.MailItem 'Object
+    Dim objAttachments As Outlook.Attachments
+    Dim i As Long
+    Dim lngCount As Long
+    Dim strFile As String
+    Dim strFileExtension As String
+    Dim strFolderpath As String
+    Dim dtDate As Date
+    Dim strDateTimeLabel As String
+    Dim lngMinimumAttachmentSize As Long
+    
+    Dim arrFileExtensionsToIgnore() As String 'using variable length string array
+    Dim strSaveToSubFolder As String
+    
+    '''''''''''''''''''''''''''''''''
+    ' USER DEFINED VARIABLES SECTION
+    '''''''''''''''''''''''''''''''''
+    
+    ' add file extensions to ignore when saving attachments (such as msg, etc.)
+    arrFileExtensionsToIgnore = Split("msg,txt,png,csv,vcf,lnk,gif,bat,exe,vbs", ",")
+    
+    ' set name of sub folder under my documents to save attachments, must already exist
+    strSaveToSubFolder = "OLAttachments"
+    
+    ' set minimum attachment size in B (Bytes), eg 5 KB = 5120 B
+    lngMinimumAttachmentSize = 1024
+    
+    ''''''''''''''''''''''''''''''''''''
+    ' DO NOT MAKE CHANGES BELOW AT RISK
+    ' OF DEATH AND/OR HIGHER TAXES
+    ''''''''''''''''''''''''''''''''''''
+    
+    'COMMENTED OUT BY STEVE
+    'On Error Resume Next
+    
+    ' Get the path to your My Documents folder
+    strFolderpath = CreateObject("WScript.Shell").SpecialFolders(16)
+    
+    
+    ' Set the Attachment folder.
+    
+    strFolderpath = strFolderpath & "\" & strSaveToSubFolder & "\"
+    
+    ' The attachment folder needs to exist
+    If dirExists(strFolderpath) Then
+
+        ' Instantiate an Outlook Application object.
+        Set objOL = Application
+    
+        ' Get the collection of selected objects.
+        Set objSelection = objOL.ActiveExplorer.Selection
+        
+        If MsgBox("STARTUP: Proceed with saving attachments for " & objSelection.Count & " selected messages?" & vbCrLf & "ANY DUPLICATE NAMES OF ATTACHMENTS WILL BE OVERWRITTEN", vbYesNo) = vbNo Then
+            Exit Sub
+        End If
+        
+        ' Check each selected item for class.
+        For Each objOLItem In objSelection
+        
+            ' Only work with mail items (not appointments, etc)
+            If objOLItem.Class = 43 Then
+                
+                ' Proceed by assigning objOLItem to objMsg (Outlook.MailItem)
+                Set objMsg = objOLItem
+                Set objAttachments = objMsg.Attachments
+                
+                ' obtain message SentOn date time to use in file name
+                dtDate = objMsg.SentOn
+                strDateTimeLabel = Format(dtDate, "yyyymmdd", vbUseSystemDayOfWeek, vbUseSystem) & Format(dtDate, "hhnnss", vbUseSystemDayOfWeek, vbUseSystem)
+                
+                lngCount = objAttachments.Count
+                    
+                If lngCount > 0 Then
+                
+                    ' Use a count down loop for removing items
+                    ' from a collection. Otherwise, the loop counter gets
+                    ' confused and only every other item is removed.
+                    
+                    For i = lngCount To 1 Step -1
+                    
+                        ' Get the file name.
+                        strFile = objAttachments.Item(i).FileName
+                        
+                        ' Get the file extension
+                        strFileExtension = getFileExtension(strFile)
+                        
+                        ' Ignore specific file extensions such as msg,
+                        If arrayContainsString(arrFileExtensionsToIgnore, strFileExtension) Then
+                            
+                            'DEBUG
+                            'MsgBox ("WARNING: skipping unwanted attachment type " & strFileExtension)
+                    
+                        Else
+                        
+                            ' Ensure attachment meets minimum size requirement
+                            If objAttachments.Item(i).Size > lngMinimumAttachmentSize Then
+                            
+                                ' Adjust file name by stripping off the file extension if present
+                                If Len(strFileExtension) > 0 Then
+                                    strFile = Left(strFile, Len(strFile) - Len(strFileExtension) - 1) 'subtract 1 more for period separator
+                                End If
+                                
+                                ' Combine with the path and date time label
+                                strFile = strFolderpath & strFile & "_" & strDateTimeLabel
+                                
+                                ' Adjust file name by re-adding the file extension if present
+                                If Len(strFileExtension) > 0 Then
+                                    strFile = strFile & "." & strFileExtension
+                                End If
+                                
+                                
+                                ' Save the attachment as a file.
+                                objAttachments.Item(i).SaveAsFile strFile
+                                
+                            Else
+                                'DEBUG
+                                'MsgBox ("WARNING: skipping unwanted attachment size " & objAttachments.Item(i).Size)
+                                
+                            End If
+                        
+                        End If
+                        
+                    Next i
+                    
+                End If
+            Else
+                'DEBUG
+                'MsgBox ("WARNING: skipping non-mail object class " & objOLItem.Class)
+            
+            End If
+        
+        Next
+        
+        MsgBox ("PROGRAM END: CLEAN EXIT")
+    Else
+    
+        MsgBox ("CRITICAL ERROR: folder to save attachments doesn't exist")
+    
+    End If
+    
+ExitSub:
+
+    Set objAttachments = Nothing
+    Set objMsg = Nothing
+    Set objOLItem = Nothing
+    Set objSelection = Nothing
+    Set objOL = Nothing
+    '
+End Sub
+Public Function dirExists(s_directory As String) As Boolean
+
+    Dim OFSO As Object
+
+    Set OFSO = CreateObject("Scripting.FileSystemObject")
+    
+    dirExists = OFSO.FolderExists(s_directory)
+    
+    Set OFSO = Nothing
+
+End Function
+Public Function getFileExtension(s_FileName As String) As String
+
+    Dim OFSO As Object
+
+    Set OFSO = CreateObject("Scripting.FileSystemObject")
+    
+    getFileExtension = OFSO.GetExtensionName(s_FileName)
+    
+    Set OFSO = Nothing
+
+End Function
+Function arrayContainsString(arr, v) As Boolean
+    
+    Dim rv As Boolean, lb As Long, ub As Long, i As Long
+    
+    lb = LBound(arr)
+    ub = UBound(arr)
+    
+    For i = lb To ub
+        If arr(i) = v Then
+            rv = True
+            Exit For
+        End If
+    Next i
+    
+    arrayContainsString = rv
+
+End Function
